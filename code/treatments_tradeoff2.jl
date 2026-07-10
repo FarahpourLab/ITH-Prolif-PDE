@@ -3,8 +3,8 @@
 
 This code was used to create the following figures:
 
-- Figure 4 (a-k): 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
-- Figure 5 (a-b): 12, 13
+- Figure S8 (a-f): 1, 2, 3, 4, 5, 6
+- Figure S9 (a-b): 7, 8
 
 """
 
@@ -20,10 +20,10 @@ df_log_params = CSV.read(path*file_log_params, DataFrame)
 delta_cont(t) = t >= 5 && t <= 15 ? 1.0 : 0.0
 @register_symbolic delta_cont(t)
 
-## Example for one tumor replicate (replicate 174)
+## Example for one tumor replicate (replicate 133)
 
-rep_id = 174
-@load path*"results/"*"params_fit_tradeoff1_$(rep_id).jld2" params_fit 
+rep_id = 133
+@load path*"results/"*"params_fit_tradeoff2_$(rep_id).jld2" params_fit 
 
 @parameters x
 @variables c(..) y(..) N(..) C_v(..) C_d(..) integrand(..) x̄(..) x̄c(..) f(..)
@@ -33,17 +33,18 @@ Dtt = Differential(t)^2
 Dx = Differential(x)
 
 mu = df_params[666,2]
-K = df_log_params[11, 2]
+K = df_log_params[6, 2]
 
 kd_s = params_fit[3]
-s = params_fit[4]
+x_opt_s = params_fit[4]
 kcl_s = params_fit[5]
 
 kcl = kcl_s * mu
-kd = kd_s * mu^(1-s)
+kd = kd_s * mu
 
 sigma_s = params_fit[2]
 sigma = sigma_s * mu
+x_opt = x_opt_s * mu
 
 D_s = params_fit[1]
 D = D_s * mu^3
@@ -63,8 +64,8 @@ Ix = Integral(x in DomainSets.ClosedInterval(rho_min, rho_max))
 
 ### Untreated 
 
-eq  = [Dt(c(t,x)) ~ D*Dxx(c(t, x)) + x*c(t,x)*(1 - N(t)/K) - kd * x^s * c(t,x) - delta_cont(t) * f(t,x) * c(t,x) 
-    Dt(y(t,x)) ~ kd * x^s * c(t,x) - kcl * y(t,x) + delta_cont(t) * f(t,x) * c(t,x)
+eq  = [Dt(c(t,x)) ~ D*Dxx(c(t, x)) + x*c(t,x)*(1 - N(t)/K) - kd * ((x-x_opt)^2/((x-x_opt)^2+x*(rho_max-x))) * c(t,x) - delta_cont(t) * f(t,x) * c(t,x) 
+    Dt(y(t,x)) ~ kd * ((x-x_opt)^2/((x-x_opt)^2+x*(rho_max-x))) * c(t,x) - kcl * y(t,x) + delta_cont(t) * f(t,x) * c(t,x)
     N(t) ~ Ix(c(t,x)) + Ix(y(t,x))
     C_v(t) ~ Ix(c(t,x))
     C_d(t) ~ Ix(y(t,x))
@@ -103,8 +104,8 @@ solx̄c_untreated = sol[x̄c(t)]
 
 ### Uniform treatment 
 
-eq  = [Dt(c(t,x)) ~ D*Dxx(c(t, x)) + x*c(t,x)*(1 - N(t)/K) - kd * x^s * c(t,x) - delta_cont(t) * f(t,x) * c(t,x) 
-    Dt(y(t,x)) ~ kd * x^s * c(t,x) - kcl * y(t,x) + delta_cont(t) * f(t,x) * c(t,x)
+eq  = [Dt(c(t,x)) ~ D*Dxx(c(t, x)) + x*c(t,x)*(1 - N(t)/K) - kd * ((x-x_opt)^2/((x-x_opt)^2+x*(rho_max-x))) * c(t,x) - delta_cont(t) * f(t,x) * c(t,x) 
+    Dt(y(t,x)) ~ kd * ((x-x_opt)^2/((x-x_opt)^2+x*(rho_max-x))) * c(t,x) - kcl * y(t,x) + delta_cont(t) * f(t,x) * c(t,x)
     N(t) ~ Ix(c(t,x)) + Ix(y(t,x))
     C_v(t) ~ Ix(c(t,x))
     C_d(t) ~ Ix(y(t,x))
@@ -139,8 +140,8 @@ solx̄c_uniform = sol[x̄c(t)]
 
 ### Low-rho targeting treatment 
 
-eq  = [Dt(c(t,x)) ~ D*Dxx(c(t, x)) + x*c(t,x)*(1 - N(t)/K) - kd * x^s * c(t,x) - delta_cont(t) * f(t,x) * c(t,x) 
-    Dt(y(t,x)) ~ kd * x^s * c(t,x) - kcl * y(t,x) + delta_cont(t) * f(t,x) * c(t,x)
+eq  = [Dt(c(t,x)) ~ D*Dxx(c(t, x)) + x*c(t,x)*(1 - N(t)/K) - kd * ((x-x_opt)^2/((x-x_opt)^2+x*(rho_max-x))) * c(t,x) - delta_cont(t) * f(t,x) * c(t,x) 
+    Dt(y(t,x)) ~ kd * ((x-x_opt)^2/((x-x_opt)^2+x*(rho_max-x))) * c(t,x) - kcl * y(t,x) + delta_cont(t) * f(t,x) * c(t,x)
     N(t) ~ Ix(c(t,x)) + Ix(y(t,x))
     C_v(t) ~ Ix(c(t,x))
     C_d(t) ~ Ix(y(t,x))
@@ -175,8 +176,8 @@ solx̄c_low = sol[x̄c(t)]
 
 ### Mid-rho targeting 
 
-eq  = [Dt(c(t,x)) ~ D*Dxx(c(t, x)) + x*c(t,x)*(1 - N(t)/K) - kd * x^s * c(t,x) - delta_cont(t) * f(t,x) * c(t,x) 
-    Dt(y(t,x)) ~ kd * x^s * c(t,x) - kcl * y(t,x) + delta_cont(t) * f(t,x) * c(t,x)
+eq  = [Dt(c(t,x)) ~ D*Dxx(c(t, x)) + x*c(t,x)*(1 - N(t)/K) - kd * ((x-x_opt)^2/((x-x_opt)^2+x*(rho_max-x))) * c(t,x) - delta_cont(t) * f(t,x) * c(t,x) 
+    Dt(y(t,x)) ~ kd * ((x-x_opt)^2/((x-x_opt)^2+x*(rho_max-x))) * c(t,x) - kcl * y(t,x) + delta_cont(t) * f(t,x) * c(t,x)
     N(t) ~ Ix(c(t,x)) + Ix(y(t,x))
     C_v(t) ~ Ix(c(t,x))
     C_d(t) ~ Ix(y(t,x))
@@ -211,8 +212,8 @@ solx̄c_mid = sol[x̄c(t)]
 
 ### High-rho targeting 
 
-eq  = [Dt(c(t,x)) ~ D*Dxx(c(t, x)) + x*c(t,x)*(1 - N(t)/K) - kd * x^s * c(t,x) - delta_cont(t) * f(t,x) * c(t,x) 
-    Dt(y(t,x)) ~ kd * x^s * c(t,x) - kcl * y(t,x) + delta_cont(t) * f(t,x) * c(t,x)
+eq  = [Dt(c(t,x)) ~ D*Dxx(c(t, x)) + x*c(t,x)*(1 - N(t)/K) - kd * ((x-x_opt)^2/((x-x_opt)^2+x*(rho_max-x))) * c(t,x) - delta_cont(t) * f(t,x) * c(t,x) 
+    Dt(y(t,x)) ~ kd * ((x-x_opt)^2/((x-x_opt)^2+x*(rho_max-x))) * c(t,x) - kcl * y(t,x) + delta_cont(t) * f(t,x) * c(t,x)
     N(t) ~ Ix(c(t,x)) + Ix(y(t,x))
     C_v(t) ~ Ix(c(t,x))
     C_d(t) ~ Ix(y(t,x))
@@ -262,7 +263,7 @@ plot!(title="Treatment terms", xlabel="Proliferation rate "*L"\rho\,[\mathrm{day
 ylabel=L"[\mathrm{day^{-1}}]", size=(500,400), legend_title="Targeting:")
 savefig(path*"results/treatment_profiles.svg")
 
-### 2) Tumor volumes after treatment 
+### 2) tumor volumes after treatment 
 
 plt = plot(500,400)
 plot!(plt, discrete_t, soln_uniform, label="", xlabel="Time [days]", width=2, color=1,
@@ -271,7 +272,7 @@ plot!(plt, discrete_t, soln_low, label=" ", width=2, color=2)
 plot!(plt, discrete_t, soln_high, label=" ", width=2, color=3)
 plot!(plt, discrete_t, soln_mid, label=" ", width=2, color=4)
 plot!(plt, discrete_t, soln_untreated, label="", color=:black, width=2)
-savefig(plt,path*"results/TV_treatments_tradeoff1.svg")
+savefig(plt,path*"results/TV_treatments_tradeoff2.svg")
 
 ### 3) Density C_v(t,rho) after uniform treatment 
 
@@ -289,7 +290,7 @@ end
 xlabel!(plt, L"\mathrm{\rho}"*" "*L"\mathrm{[day^{-1}}]")
 ylabel!(plt, L"C_v(t,"*L"\rho"*")")
 plot!(plt, solx̄c_uniform, ymean_cv, st=:scatter, color=:orangered, label=L"\bar{\rho}_{total}", markersize=2, msc=:orangered)
-savefig(plt,path*"results/density_uniform_tradeoff1.svg")
+savefig(plt,path*"results/density_uniform_tradeoff2.svg")
 
 ### 4) Density C_v(t,rho) after low-rho targeting treatment 
 
@@ -307,7 +308,7 @@ end
 xlabel!(plt, L"\mathrm{\rho}"*" "*L"\mathrm{[day^{-1}}]")
 ylabel!(plt, L"C_v(t,"*L"\rho"*")")
 plot!(plt, solx̄c_low, ymean_cv, st=:scatter, color=:orangered, label=L"\bar{\rho}_{total}", markersize=2, msc=:orangered)
-savefig(plt,path*"results/density_low_tradeoff1.svg")
+savefig(plt,path*"results/density_low_tradeoff2.svg")
 
 ### 5) Density C_v(t,rho) after mid-rho targeting treatment 
 
@@ -325,7 +326,7 @@ end
 xlabel!(plt, L"\mathrm{\rho}"*" "*L"\mathrm{[day^{-1}}]")
 ylabel!(plt, L"C_v(t,"*L"\rho"*")")
 plot!(plt, solx̄c_mid, ymean_cv, st=:scatter, color=:orangered, label=L"\bar{\rho}_{total}", markersize=2, msc=:orangered)
-savefig(plt,path*"results/density_mid_tradeoff1.svg")
+savefig(plt,path*"results/density_mid_tradeoff2.svg")
 
 ### 6) Density C_v(t,rho) after high-rho targeting treatment 
 
@@ -343,79 +344,9 @@ end
 xlabel!(plt, L"\mathrm{\rho}"*" "*L"\mathrm{[day^{-1}}]")
 ylabel!(plt, L"C_v(t,"*L"\rho"*")")
 plot!(plt, solx̄c_high, ymean_cv, st=:scatter, color=:orangered, label=L"\bar{\rho}_{total}", markersize=2, msc=:orangered)
-savefig(plt,path*"results/density_high_tradeoff1.svg")
+savefig(plt,path*"results/density_high_tradeoff2.svg")
 
-### 7) Heatmap of untreated group 
-
-plt = heatmap(
-discrete_x,
-discrete_t,
-solc_untreated;
-clim=(0, maximum(solc_untreated)),
-top_margin=5mm,
-xlabel = L"\rho\,[\mathrm{day^{-1}}]",
-ylabel = L"t\,[\mathrm{days}]",
-title  = "",
-colorbar_title = "C(t,"*L"\rho"*")")
-savefig(plt,path*"results/heatmap_untreated.svg")
-
-### 8) Heatmap of uniform treatment 
-
-plt = heatmap(
-discrete_x,
-discrete_t,
-solc_uniform;
-clim=(0, maximum(solc_untreated)),
-top_margin=5mm,
-xlabel = L"\rho\,[\mathrm{day^{-1}}]",
-ylabel = L"t\,[\mathrm{days}]",
-title  = "",
-colorbar_title = "C(t,"*L"\rho"*")")
-savefig(plt,path*"results/heatmap_uniform_tradeoff1.svg")
-
-### 9) Heatmap of low-rho targeting treatment 
-
-plt = heatmap(
-discrete_x,
-discrete_t,
-solc_low;
-clim=(0, maximum(solc_untreated)),
-top_margin=5mm,
-xlabel = L"\rho\,[\mathrm{day^{-1}}]",
-ylabel = L"t\,[\mathrm{days}]",
-title  = "",
-colorbar_title = "C(t,"*L"\rho"*")")
-savefig(plt,path*"results/heatmap_low_tradeoff1.svg")
-
-### 10) Heatmap of mid-rho targeting treatment 
-
-plt = heatmap(
-discrete_x,
-discrete_t,
-solc_mid;
-clim=(0, maximum(solc_untreated)),
-top_margin=5mm,
-xlabel = L"\rho\,[\mathrm{day^{-1}}]",
-ylabel = L"t\,[\mathrm{days}]",
-title  = "",
-colorbar_title = "C(t,"*L"\rho"*")")
-savefig(plt,path*"results/heatmap_mid_tradeoff1.svg")
-
-### 11) Heatmap of high-rho targeting treatment 
-
-plt = heatmap(
-discrete_x,
-discrete_t,
-solc_high;
-clim=(0, maximum(solc_untreated)),
-top_margin=5mm,
-xlabel = L"\rho\,[\mathrm{day^{-1}}]",
-ylabel = L"t\,[\mathrm{days}]",
-title  = "",
-colorbar_title = "C(t,"*L"\rho"*")")
-savefig(plt,path*"results/heatmap_high_tradeoff1.svg")
-
-### 12) Population-wide mean proliferation rate after treatment
+### 7) Population-wide mean proliferation rate after treatment
 
 plt = plot()
 plot!(plt, discrete_t, solx̄_uniform, label="uniform", xlabel="Time [days]", st=:scatter,
@@ -423,9 +354,9 @@ ylabel=L"\mathrm{\bar{\rho}_{total} \, [day^{-1}]}", title="Mean proliferation r
 plot!(plt, discrete_t, solx̄_decreasing, label="low "*L"\rho", st=:scatter, msc=:white)
 plot!(plt, discrete_t, solx̄_increasing, label="high "*L"\rho", st=:scatter, msc=:white)
 plot!(plt, discrete_t, solx̄_gaussian, label="mid "*L"\rho", st=:scatter, msc=:white)
-savefig(plt,path*"results/mean_total_trx_tradeoff1.svg")
+savefig(plt,path*"results/mean_total_trx_tradeoff2.svg")
 
-### 13) Mean proliferation rate in viable subpopulation after treatment 
+### 8) Mean proliferation rate in viable subpopulation after treatment 
 
 plt = plot()
 plot!(plt, discrete_t, solx̄c_uniform, label="uniform", xlabel="Time [days]", st=:scatter,
@@ -433,4 +364,4 @@ ylabel=L"\mathrm{\bar{\rho}_{v} \, [day^{-1}]}", title="Mean proliferation rate 
 plot!(plt, discrete_t, solx̄c_low, label="low "*L"\rho", st=:scatter, msc=:white)
 plot!(plt, discrete_t, solx̄c_high, label="high "*L"\rho", st=:scatter, msc=:white)
 plot!(plt, discrete_t, solx̄c_mid, label="mid "*L"\rho", st=:scatter, msc=:white)
-savefig(plt,path*"results/mean_viable_trx_tradeoff1.svg")
+savefig(plt,path*"results/mean_viable_trx_tradeoff2.svg")

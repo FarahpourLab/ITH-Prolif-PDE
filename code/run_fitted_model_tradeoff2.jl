@@ -7,7 +7,7 @@ For long-term simulations, set t1 (l. 80) to a high value (e.g. 2000 days) and i
 intervals between model saving times (l. 94, e.g. saveat=collect(t0:10.0:t1)) 
 """
 
-function run_model_tradeoff1(t1=58)
+function run_model_tradeoff2(t1=58)
     path = "./"
     file_data = "data/TV_control_long.csv.csv"
     file_params = "results/fit_K-rho_hierarchical_bayesian.csv"
@@ -21,7 +21,7 @@ function run_model_tradeoff1(t1=58)
     
     for idx in eachindex(unique(df_ctrl.replicate_id))
         rep_id = unique(df_ctrl.replicate_id)[idx]
-        @load path*"results/"*"params_fit_tradeoff1_$(rep_id).jld2" params_fit
+        @load path*"results/"*"params_fit_tradeoff2_$(rep_id).jld2" params_fit
     
         @parameters x
         @variables c(..) d(..)  C_v(..) C_d(..) N(..) integrand(..) x̄(..) x̄c(..) 
@@ -34,11 +34,11 @@ function run_model_tradeoff1(t1=58)
         K = df_log_params[idx, 2] # individual carrying capacity 
     
         kd_s = params_fit[3]
-        s = params_fit[4]
+        x_opt_s = params_fit[4]
         kcl_s = params_fit[5]
     
         kcl = kcl_s * mu
-        kd = kd_s * mu^(1-s)
+        kd = kd_s * mu
     
         V_init = df_ctrl[df_ctrl.replicate_id .== rep_id, :tumor_volume_smoothed][1]*0.001
         times = df_ctrl[(df_ctrl.replicate_id .== rep_id), :time_d]
@@ -54,14 +54,15 @@ function run_model_tradeoff1(t1=58)
     
         Ix = Integral(x in DomainSets.ClosedInterval(rho_min, rho_max))
     
-        eq  = [Dt(c(t,x)) ~ D*Dxx(c(t, x)) + x*c(t,x)*(1 - N(t)/K) - kd * x^s * c(t,x)
-           Dt(d(t,x)) ~ kd * x^s * c(t,x) - kcl * d(t,x)
+        eq  = [Dt(c(t,x)) ~ D*Dxx(c(t, x)) + x*c(t,x)*(1 - N(t)/K) - kd * ((x-x_opt)^2/((x-x_opt)^2+x*(rho_max-x))) * c(t,x)
+           Dt(d(t,x)) ~ kd * ((x-x_opt)^2/((x-x_opt)^2+x*(rho_max-x))) * c(t,x) - kcl * d(t,x)
            C_v(t) ~ Ix(c(t,x))
            C_d(t) ~ Ix(d(t,x))
            N(t) ~ Ix(c(t,x)) + Ix(d(t,x))
            integrand(t,x) ~ x * c(t, x)
            x̄(t) ~ Ix(integrand(t,x))/(Ix(c(t,x)) + Ix(d(t,x)))
            x̄c(t) ~ Ix(integrand(t,x))/(Ix(c(t,x)))]
+    
     
         t0 = times[1]
         t1 = t1

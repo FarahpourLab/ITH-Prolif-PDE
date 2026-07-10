@@ -1,134 +1,103 @@
 """
-## Evolutionary Analysis
-
-This code was used to create the following figures:
-
-- Figure 2 (a-b): 1, 3
-- Figure S5 (a-b): 2, 4
-
+This file fits the model to data from 11 tumor replicates.
 """
 
-### 1) Life-history trade-off 
+# read command line input
+idx_str = ARGS[1]
 
-ρ_range = range(0.0, 0.2, length=100)
-pA = plot(legend=:topleft, xlabel=L"\rho", ylabel="Death Rate", 
-          title="(a) Life-history trade-off", grid=true)
+path = "./"
+file_data = "data/TV_control_long.csv.csv"
+file_params = "results/fit_K-rho_hierarchical_bayesian.csv"
+file_log_params = "results/logistic_fit_params_control.csv"
 
-for s in [0.5, 1.0, 2.0]
-    mortality = k_d .* ρ_range.^s
-    plot!(ρ_range, mortality, lw=2, label="s = $s")
-end
-savefig("./results/life_history_tradeoff.svg")
+df_ctrl = CSV.read(path*file_data, DataFrame)
+df_params = CSV.read(path*file_params, DataFrame)
+df_log_params = CSV.read(path*file_log_params, DataFrame)
 
-### 2) Fitness landscape at fixed N/K 
+# get replicate ID from index
+idx = parse(Int, idx_str)
+rep_id = unique(df_ctrl.replicate_id)[idx]
 
-function g(ρ, N_K; s=s_val, k_d=k_d)
-    ρ * (1 - N_K) - k_d * ρ^s
-end
+function fit_trade_off_control(time_array, p)
+    @parameters x, D_s, sigma_s, kd_s, s, kcl_s
+    @variables c(..) y(..) N(..) integrand(..) x̄(..) 
 
-N_K_fixed = 0.7
-g_slice = [g(ρ, N_K_fixed) for ρ in ρ_range]
-ρ_star_val = ((1 - N_K_fixed)/(k_d * s_val))^(1/(s_val-1))
-g_star = g(ρ_star_val, N_K_fixed)
+    Dxx = Differential(x)^2
+    Dtt = Differential(t)^2
+    Dx = Differential(x)
 
-pB = plot(ρ_range, g_slice, lw=2, legend=false, 
-          xlabel=L"\rho", ylabel=L"g(\rho)", 
-          title="(b) Fitness Landscape at N/K = $N_K_fixed",
-          grid=true)
+    mu = df_params[666,2]
+    K = df_log_params[idx, 2] # individual carrying capacity 
 
-vline!([ρ_star_val], ls=:dash, color=:black)
-scatter!([ρ_star_val], [g_star], color=:red)
-savefig("./results/fitness_landscape.svg")
+    V_init = df_ctrl[df_ctrl.replicate_id .== rep_id, :tumor_volume_smoothed][1]*0.001
+    times_s = df_ctrl[(df_ctrl.replicate_id .== rep_id), :time_d].*mu
 
-### 3) Tumor growth and ESS dynamics 
+    rho_min = 0.0
+    rho_max = 0.2 # 1/day
 
-ρmax=0.6
-function rho_star(N, K, kd, s; ρmax=0.4)
-    if s > 1
-        return clamp(((1 - N/K)/(kd*s))^(1/(s-1)), 0.0, ρmax)
-    else
-        # Fitness at both boundaries
-        g0 = 0.0
-        gmax = ρmax*(1 - N/K) - kd*ρmax^s
-        return gmax > g0 ? ρmax : 0.0
+    # Scaled parameters
+    mu_s = mu/mu
+    V_init_s = V_init/K
+
+    rho_min_s = rho_min/mu
+    rho_max_s = rho_max/mu
+
+    Ix = Integral(x in DomainSets.ClosedInterval(rho_min_s, rho_max_s))
+
+    eq  = [Dt(c(t,x)) ~ D_s*Dxx(c(t, x)) + x*c(t,x)*(1 - N(t)) - kd_s * x^s * c(t,x)
+       Dt(y(t,x)) ~ kd_s * x^s * c(t,x) - kcl_s * y(t,x)
+       N(t) ~ Ix(c(t,x)) + Ix(y(t,x))
+       integrand(t,x) ~ x * c(t, x)
+       x̄(t) ~ Ix(integrand(t,x))/(Ix(c(t,x)) + Ix(y(t,x)))]
+
+
+    t0 = times_s[1]
+    t1 = times_s[end]
+    domains = [t ∈ (t0, t1),
+    x ∈ (rho_min_s, rho_max_s)]
+
+    bcs = [c(0,x) ~ (V_init_s/(sqrt(2*pi)*sigma_s))*exp(-((x-mu_s)^2)/(2*sigma_s^2)), 
+    y(0,x) ~ 0.0, Dx(c(t, rho_min_s)) ~ 0.0, Dx(c(t, rho_max_s)) ~ 0, 
+    Dx(y(t, rho_min_s)) ~ 0.0, Dx(y(t, rho_max_s)) ~ 0]
+
+    @named pdesys = PDESystem(eq, bcs, domains, [t,x], 
+        [c(t,x), y(t,x), N(t), integrand(t,x), x̄(t)], [D_s, sigma_s, kd_s, s, kcl_s], 
+        defaults=Dict(D_s=>p[1], sigma_s=>p[2],kd_s => p[3], s => p[4], kcl_s => p[5]))
+    dx=0.1
+    discretization = MOLFiniteDifference([x => 60], t)
+
+    prob = discretize(pdesys,discretization)
+    sol = solve(prob, Tsit5(), saveat=times_s)
+
+    sol_total = sol[N(t)]
+    sol_mean = sol[x̄(t)]
+    discrete_t = sol[t]
+
+    vol_int = []
+    mean_int = []
+
+    for i in eachindex(discrete_t)
+        if discrete_t[i] in times_s
+            push!(vol_int, sol_total[i])
+            push!(mean_int, sol_mean[i])
+        end
     end
+    n_pred = vcat(vol_int, mean_int)
+    return n_pred
 end
 
-function tumor_growth!(du, u, p, t)
-    N, = u
-    kd, s, K, ρmax = p
-    ρ = rho_star(N, K, kd, s; ρmax=ρmax)
-    du[1] = ρ*N*(1 - N/K) - kd*ρ^s*N
-end
+mu = df_params[666,2]
+K = df_log_params[idx, 2] # individual carrying capacity 
 
-s_values = [0.5, 1.0, 2.0]
-colors = [:red, :green, :blue]
+times_s = df_ctrl[(df_ctrl.replicate_id .== rep_id), :time_d].*mu
 
-pC = plot(
-    xlabel="Time (days)",
-    ylabel="Tumor burden",
-    title="(c) Tumor Growth and ESS Adaptation",
-    legend=:bottomright,
-    grid=true
-)
+p0 = [0.0058, 0.2, 0.05, 0.8, 3]
+# D, sigma, kd_s, s, kcl_s
 
-for (s,c) in zip(s_values, colors)
-    params = (k_d, s, K, ρmax)
-    sol = solve(
-        ODEProblem(tumor_growth!, [N₀], (0.0,80.0), params),
-        Tsit5(),
-        saveat=0.1
-    )
-    plot!(pC, sol.t, sol[1,:],
-          color=c,
-          lw=2,
-          label="N(t), s=$s")
-end
+mean_vec = fill(mu/mu, length(times_s))
+vols_vec = df_ctrl[(df_ctrl.replicate_id .== rep_id), :tumor_volume_smoothed].*0.001./K
+data = vcat(vols_vec, mean_vec)
 
-ax2 = twinx()
-
-for (s,c) in zip(s_values, colors)
-    params = (k_d, s, K, ρmax)
-    sol = solve(
-        ODEProblem(
-            tumor_growth!,
-            [N₀],
-            (0.0, 80.0),
-            params
-        ),
-        Tsit5(),
-        saveat = 0.1
-    )
-    ρ = [rho_star(n, K, k_d, s; ρmax=ρmax) for n in sol[1,:]]
-    plot!(ax2,
-          sol.t,
-          ρ,
-          ls=:dash,
-          color=c,
-          label="ρ*(t), s=$s")
-end
-
-display(pC)
-savefig("./results/TV_vs_rho_opt.svg")
-
-### 4) Fitness landscape dynamics 
-
-ρ_range = range(0.0, 0.4, length=100)
-time_points = [5.0, 25, 50.0]  # Early, mid, late
-colors = [:green :orange :purple]
-pD = plot(xlabel=L"\rho", ylabel=L"g(\rho)", 
-          title="(d) Fitness Landscape Dynamics",
-          grid=true, legend=:topright, ylims=(0,0.18))
-
-for (i, t_i) in enumerate(time_points)
-    idx = argmin(abs.(t .- t_i))
-    N_K_i = N[idx]/K
-    ρ_star_i = ρ_star[idx]
-    g_vals = [g(ρ, N_K_i) for ρ in ρ_range]
-    
-    label_str = "Day $(Int(t_i))"*L"(\mathrm{\frac{N}{K}}"*"=$(round(N_K_i, digits=2)))"
-    plot!(ρ_range, g_vals, lw=2, color=colors[i], label=label_str)
-    scatter!([ρ_star_i], [g(ρ_star_i, N_K_i)], color=colors[i], marker=:star, markersize=6)
-    println(ρ_star_i)
-end
-savefig("./results/fitness_landscape_dynamics.svg")
+fit = curve_fit(fit_trade_off_control, times_s, data, p0; lower=[0.0029, 0.05, 0.0, 1.0, 0.001/mu])
+params_fit = fit.param
+@save path*"results/"*"params_fit_tradeoff1_$(rep_id).jld2" params_fit

@@ -1,105 +1,151 @@
 """
-## Run model with fitted parameters
+## Simulation and visualization of example model
 
-The default setting for the simulation time corresponds to the experimental time 
-frame (58 days). 
-For long-term simulations, set t1 (l. 80) to a high value (e.g. 2000 days) and increase the
-intervals between model saving times (l. 94, e.g. saveat=collect(t0:10.0:t1)) 
+With this code, the following plots were created:
+
+- Figure 1 (a-d): 1,2,3,4
+- Figure 1 a (inset): 5
+- Figure 1 d (inset): 6
+
 """
 
-function run_model_tradeoff2(t1=58)
-    path = "./"
-    file_data = "data/TV_control_long.csv.csv"
-    file_params = "results/fit_K-rho_hierarchical_bayesian.csv"
-    file_log_params = "results/logistic_fit_params_control.csv"
-    
-    df_ctrl = CSV.read(path*file_data, DataFrame)
-    df_params = CSV.read(path*file_params, DataFrame)
-    df_log_params = CSV.read(path*file_log_params, DataFrame)
-    
-    # fit was done with dimensionless model, now the parameters have to be transformed back 
-    
-    for idx in eachindex(unique(df_ctrl.replicate_id))
-        rep_id = unique(df_ctrl.replicate_id)[idx]
-        @load path*"results/"*"params_fit_tradeoff2_$(rep_id).jld2" params_fit
-    
-        @parameters x
-        @variables c(..) d(..)  C_v(..) C_d(..) N(..) integrand(..) x̄(..) x̄c(..) 
-    
-        Dxx = Differential(x)^2
-        Dtt = Differential(t)^2
-        Dx = Differential(x)
-    
-        mu = df_params[666,2]
-        K = df_log_params[idx, 2] # individual carrying capacity 
-    
-        kd_s = params_fit[3]
-        x_opt_s = params_fit[4]
-        kcl_s = params_fit[5]
-    
-        kcl = kcl_s * mu
-        kd = kd_s * mu
-    
-        V_init = df_ctrl[df_ctrl.replicate_id .== rep_id, :tumor_volume_smoothed][1]*0.001
-        times = df_ctrl[(df_ctrl.replicate_id .== rep_id), :time_d]
-    
-        rho_min = 0.0
-        rho_max = 0.2 # 1/day
-    
-        sigma_s = params_fit[2]
-        sigma = sigma_s * mu
-    
-        D_s = params_fit[1]
-        D = D_s * mu^3
-    
-        Ix = Integral(x in DomainSets.ClosedInterval(rho_min, rho_max))
-    
-        eq  = [Dt(c(t,x)) ~ D*Dxx(c(t, x)) + x*c(t,x)*(1 - N(t)/K) - kd * ((x-x_opt)^2/((x-x_opt)^2+x*(rho_max-x))) * c(t,x)
-           Dt(d(t,x)) ~ kd * ((x-x_opt)^2/((x-x_opt)^2+x*(rho_max-x))) * c(t,x) - kcl * d(t,x)
-           C_v(t) ~ Ix(c(t,x))
-           C_d(t) ~ Ix(d(t,x))
-           N(t) ~ Ix(c(t,x)) + Ix(d(t,x))
-           integrand(t,x) ~ x * c(t, x)
-           x̄(t) ~ Ix(integrand(t,x))/(Ix(c(t,x)) + Ix(d(t,x)))
-           x̄c(t) ~ Ix(integrand(t,x))/(Ix(c(t,x)))]
-    
-    
-        t0 = times[1]
-        t1 = t1
-        interval = 1.0
-        duration = "short"
-        if t1 >= 1000
-            interval = 10.0
-            duration = "long"
-        end
-        domains = [t ∈ (t0, t1),
-        x ∈ (rho_min, rho_max)]
-    
-        bcs = [c(0,x) ~ (V_init/(sqrt(2*pi)*sigma))*exp(-((x-mu)^2)/(2*sigma^2)), 
-        d(0,x) ~ 0.0, Dx(c(t, rho_min)) ~ 0.0, Dx(c(t, rho_max)) ~ 0, 
-        Dx(d(t, rho_min)) ~ 0.0, Dx(d(t, rho_max)) ~ 0]
-    
-        @named pdesys = PDESystem(eq, bcs, domains, [t,x], 
-            [c(t,x), d(t,x), C_v(t), C_d(t), N(t), integrand(t,x), x̄(t), x̄c(t)])
-        dx=0.1
-        discretization = MOLFiniteDifference([x => 60], t)
-    
-        prob = discretize(pdesys,discretization)
-        sol = solve(prob, Tsit5(), saveat=collect(t0:interval:t1))
-    
-        vols_vec = df_ctrl[(df_ctrl.replicate_id .== rep_id), :tumor_volume_smoothed].*0.001
-    
-        # sol = solutions[idx]
-        discrete_x = sol[x]
-        discrete_t = sol[t]
-        solc = sol[c(t,x)]
-        sold = sol[d(t,x)]
-        sol_Nv = sol[C_v(t)]
-        sol_Nd = sol[C_d(t)]
-        sol_total = sol[N(t)]
-        solx̄ = sol[x̄(t)]
-        solx̄c = sol[x̄c(t)]
-    
-        @save path*"results/sol_fit_tradeoff1_$(duration)_$(rep_id).jld2" discrete_x discrete_t solc sol_total sol_Nv sol_Nd solx̄ solx̄c
-    end
+path = "./"
+
+@parameters x
+@variables c(..) y(..) N(..) C_v(..) C_d(..) integrand(..) x̄(..) x̄c(..)
+
+Dxx = Differential(x)^2
+Dtt = Differential(t)^2
+Dx = Differential(x)
+
+# Simplified parameter values 
+mu = 0.05516 # 1/day
+K = 1 # ml 
+kcl = 0.001 # 1/day
+s = 1.4
+kd = 0.07
+sigma = 0.007
+D = 5e-7
+
+# Initial conditions and boundary values 
+V_init = 0.1 # ml 
+times = [0, 2, 4, 7, 10, 12, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39, 41, 43, 45, 48, 50, 52, 54, 56, 58, 60]
+
+rho_min = 0.0
+rho_max = 0.2 
+
+Ix = Integral(x in DomainSets.ClosedInterval(rho_min, rho_max))
+
+eq  = [Dt(c(t,x)) ~ D*Dxx(c(t, x)) + x*c(t,x)*(1 - N(t)/K) - kd * x^s * c(t,x)
+    Dt(y(t,x)) ~ kd * x^s * c(t,x) - kcl * y(t,x)
+    N(t) ~ Ix(c(t,x)) + Ix(y(t,x))
+    C_v(t) ~ Ix(c(t,x))
+    C_d(t) ~ Ix(y(t,x))
+    integrand(t,x) ~ x * c(t, x)
+    x̄(t) ~ Ix(integrand(t,x))/(Ix(c(t,x)) + Ix(y(t,x)))
+    x̄c(t) ~ Ix(integrand(t,x))/(Ix(c(t,x)))]
+
+# Run model for long time (2000 days)
+
+t0 = times[1]
+t1 = 2000
+domains = [t ∈ (t0, t1),
+x ∈ (rho_min, rho_max)]
+
+bcs = [c(0,x) ~ (V_init/(sqrt(2*pi)*sigma))*exp(-((x-mu)^2)/(2*sigma^2)), 
+y(0,x) ~ 0.0, Dx(c(t, rho_min)) ~ 0.0, Dx(c(t, rho_max)) ~ 0, 
+Dx(y(t, rho_min)) ~ 0.0, Dx(y(t, rho_max)) ~ 0]
+
+@named pdesys = PDESystem(eq, bcs, domains, [t,x], 
+    [c(t,x), y(t,x), N(t), C_v(t), C_d(t), integrand(t,x), x̄(t), x̄c(t)])
+dx=0.1
+discretization = MOLFiniteDifference([x => 120], t)
+
+prob = discretize(pdesys,discretization)
+sol = solve(prob, Tsit5(), saveat=t0:10.0:t1)
+
+discrete_x = sol[x]
+discrete_t = sol[t]
+solc = sol[c(t,x)]
+sol_total = sol[N(t)]
+sol_viable = sol[C_v(t)]
+sol_doomed = sol[C_d(t)]
+solx̄ = sol[x̄(t)]
+solx̄c = sol[x̄c(t)]
+
+### 1) Plot total tumor volume over time
+plt = plot(size=(600,400))
+plot!(plt, discrete_t, sol_total, label="", xlabel="Time [days]",  zcolor=solx̄, color=palette(:vikO), msc=:white,
+ylabel="Volume [ml]", title="", st=:scatter, colorbar_title=L"\bar{\rho}_{total}")
+savefig(plt,path*"results/Ntotal_colored_long.svg")
+
+### 2) Plot total tumor volume and volumes of viable and doomed subpopulations 
+plt = plot(size=(600,400))
+plot!(plt, discrete_t, sol_total, label=L"N_{total}", xlabel="Time [days]",  color=1,
+ylabel="Volume [ml]", title="")
+plot!(plt, discrete_t, sol_viable, label=L"N_v", xlabel="Time [days]",  color=2, 
+ylabel="Volume [ml]", title="")
+plot!(plt, discrete_t, sol_doomed, label=L"N_d", xlabel="Time [days]",  color=3, 
+ylabel="Volume [ml]", title="")
+savefig(plt,path*"results/Ntotal_Nv_Nd_long.svg")
+
+### 3) Plot distribution of viable subpopulation over time 
+cols = get(ColorSchemes.imola, range(0.0, 1.0, length=length(sol[t])))
+plt = plot(size=(600,400))
+plot!(plt, xlims=(0,0.15))
+for i in eachindex(sol[t])
+    Plots.plot!(plt, collect(sol[x]), sol[c(t,x)][i, :], label="", palette=cols, lw=1.5)
 end
+xlabel!(plt, L"\mathrm{\rho}"*" "*L"\mathrm{[day^{-1}}]")
+ylabel!(plt, L"C_v(t,\rho)")
+savefig(plt,path*"results/Cv_long.svg")
+
+### 4) Plot mean proliferation rate rho_total and rho_v over time
+plt = plot(size=(600,400))
+plot!(plt, discrete_t, solx̄c, st=:scatter, msc=:white, xlabel="Time [days]", color=:orangered, 
+markersize=3, ylabel=L"\mathrm{\bar{\rho} \, [day^{-1}]}")
+plot!(plt, discrete_t, solx̄, st=:scatter, msc=:white, xlabel="Time [days]", color=:darkred,
+markersize=3, ylabel=L"\mathrm{\bar{\rho} \, [day^{-1}]}")
+savefig(plt,path*"results/rhototal_rhov_long.svg")
+
+# Run model for short time (60 days)
+
+t0 = times[1]
+t1 = times[end]
+domains = [t ∈ (t0, t1),
+x ∈ (rho_min, rho_max)]
+
+bcs = [c(0,x) ~ (V_init/(sqrt(2*pi)*sigma))*exp(-((x-mu)^2)/(2*sigma^2)), 
+y(0,x) ~ 0.0, Dx(c(t, rho_min)) ~ 0.0, Dx(c(t, rho_max)) ~ 0, 
+Dx(y(t, rho_min)) ~ 0.0, Dx(y(t, rho_max)) ~ 0]
+
+@named pdesys = PDESystem(eq, bcs, domains, [t,x], 
+    [c(t,x), y(t,x), N(t), C_v(t), C_d(t), integrand(t,x), x̄(t), x̄c(t)])
+dx=0.1
+discretization = MOLFiniteDifference([x => 120], t)
+
+prob = discretize(pdesys,discretization)
+sol = solve(prob, Tsit5(), saveat=times)
+
+discrete_x = sol[x]
+discrete_t = sol[t]
+solc = sol[c(t,x)]
+sol_total = sol[N(t)]
+sol_viable = sol[C_v(t)]
+sol_doomed = sol[C_d(t)]
+solx̄ = sol[x̄(t)]
+solx̄c = sol[x̄c(t)]
+
+### 5) Plot total tumor volume over time (for inset)
+plt = plot(size=(600,400))
+plot!(plt, discrete_t, sol_total, label="", xlabel="Time [days]",  zcolor=solx̄, color=palette(:vikO), msc=:white,
+ylabel="Volume [ml]", title="", st=:scatter, colorbar_title=L"\bar{\rho}_{total}")
+savefig(plt,path*"results/Ntotal_colored_short.svg")
+
+### 6) Plot mean proliferation rate rho_total and rho_v over time (for inset)
+plt = plot(size=(600,400))
+plot!(plt, discrete_t, solx̄c, st=:scatter, msc=:white, xlabel="Time [days]", color=:orangered, 
+markersize=3, ylabel=L"\mathrm{\bar{\rho} \, [day^{-1}]}")
+plot!(plt, discrete_t, solx̄, st=:scatter, msc=:white, xlabel="Time [days]", color=:darkred,
+markersize=3, ylabel=L"\mathrm{\bar{\rho} \, [day^{-1}]}")
+savefig(plt,path*"results/rhototal_rhov_short.svg")
