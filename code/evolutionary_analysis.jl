@@ -8,11 +8,17 @@ This code was used to create the following figures:
 
 """
 
+# --- PARAMETERS (Consistent across panels) ---
+k_d = 0.5
+s_val = 2
+K = 1000.0
+N₀ = 10.0
+
 ### 1) Life-history trade-off 
 
-ρ_range = range(0.0, 0.2, length=100)
-pA = plot(legend=:topleft, xlabel=L"\rho", ylabel="Death Rate", 
-          title="(a) Life-history trade-off", grid=true)
+ρ_range = range(0.0, 0.6, length=100)
+pA = plot(legend=:topleft, xlabel=L"\rho", ylabel="Mortality Rate", 
+          title="(a) Mortality-Production Trade-off", grid=true)
 
 for s in [0.5, 1.0, 2.0]
     mortality = k_d .* ρ_range.^s
@@ -107,28 +113,83 @@ for (s,c) in zip(s_values, colors)
           color=c,
           label="ρ*(t), s=$s")
 end
-
-display(pC)
 savefig("./results/TV_vs_rho_opt.svg")
 
 ### 4) Fitness landscape dynamics 
 
-ρ_range = range(0.0, 0.4, length=100)
-time_points = [5.0, 25, 50.0]  # Early, mid, late
-colors = [:green :orange :purple]
-pD = plot(xlabel=L"\rho", ylabel=L"g(\rho)", 
-          title="(d) Fitness Landscape Dynamics",
-          grid=true, legend=:topright, ylims=(0,0.18))
+ρ0 = ρ_star[1]
+ρf = ρ_star[end]
+
+ρ_targets = [
+    ρ0,
+    ρ0 - (ρ0-ρf)/3,
+    ρ0 - 2*(ρ0-ρf)/3
+]
+
+idx = [argmin(abs.(ρ_star .- ρ)) for ρ in ρ_targets]
+
+time_points = t[idx]
+N_K_values = N[idx] ./ K
+ρ_values = ρ_star[idx]
+
+time_points = round.(time_points, digits=0)
+
+# plot 
+s_panel = 2.0
+params = (k_d, s_panel, K, ρmax)
+
+sol = solve(
+    ODEProblem(tumor_growth!, [N₀], (0.0, 80.0), params),
+    Tsit5(),
+    saveat=0.1
+)
+
+t = sol.t
+N = sol[1,:]
+
+ρ_star = [rho_star(n, K, k_d, s_panel; ρmax=ρmax) for n in N]
+
+ρ_range = range(0.0, ρmax, length=200)
+colors = [:green, :orange, :purple]
+
+pD = plot(
+    xlabel=L"\rho",
+    ylabel=L"g(\rho)",
+    title="(d) Fitness Landscape Transformation",
+    grid=true,
+    legend=:topright
+)
 
 for (i, t_i) in enumerate(time_points)
+
     idx = argmin(abs.(t .- t_i))
-    N_K_i = N[idx]/K
-    ρ_star_i = ρ_star[idx]
-    g_vals = [g(ρ, N_K_i) for ρ in ρ_range]
-    
-    label_str = "Day $(Int(t_i))"*L"(\mathrm{\frac{N}{K}}"*"=$(round(N_K_i, digits=2)))"
-    plot!(ρ_range, g_vals, lw=2, color=colors[i], label=label_str)
-    scatter!([ρ_star_i], [g(ρ_star_i, N_K_i)], color=colors[i], marker=:star, markersize=6)
-    println(ρ_star_i)
+
+    N_K = N[idx] / K
+    ρ_opt = ρ_star[idx]
+    println(ρ_opt)
+
+    g_vals = [ρ*(1 - N_K) - k_d*ρ^s_panel for ρ in ρ_range]
+
+    label = "Day $(Int(t_i)) (N/K=$(round(N_K, digits=2)))"
+
+    plot!(
+        pD,
+        ρ_range,
+        g_vals,
+        lw=2,
+        color=colors[i],
+        label=label
+    )
+
+    scatter!(
+        pD,
+        [ρ_opt],
+        [ρ_opt*(1 - N_K) - k_d*ρ_opt^s_panel],
+        color=colors[i],
+        marker=:star5,
+        markersize=8,
+        label=""
+    )
 end
+ylims!(pD, 0, 0.45)
 savefig("./results/fitness_landscape_dynamics.svg")
