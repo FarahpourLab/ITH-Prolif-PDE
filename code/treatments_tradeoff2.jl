@@ -276,74 +276,46 @@ savefig(plt,path*"results/TV_treatments_tradeoff2.svg")
 
 ### 3) Density C_v(t,rho) after uniform treatment 
 
-ymean_cv = zeros(length(discrete_t))
-for i in eachindex(discrete_t)
-    itp = LinearInterpolation(discrete_x, solc_uniform[i, :], extrapolation_bc=Interpolations.Flat())
-    ymean_cv[i] = itp(solx̄c_uniform[i])
-end
+pink = colorant"pink"
+hawaii = get(ColorSchemes.hawaii, range(0.0, 1.0, length=length(discrete_t)-3))
+cols = vcat(fill(pink,3), hawaii)
 
-cols = get(ColorSchemes.imola, range(0.0, 1.0, length=length(discrete_t)))
 plt = plot(size=(500,400), xlims=(0,0.15))
 for i in eachindex(discrete_t)
     Plots.plot!(plt, discrete_x, solc_uniform[i, :], label="", palette=cols, lw=1.5)
 end
 xlabel!(plt, L"\mathrm{\rho}"*" "*L"\mathrm{[day^{-1}}]")
 ylabel!(plt, L"C_v(t,"*L"\rho"*")")
-plot!(plt, solx̄c_uniform, ymean_cv, st=:scatter, color=:orangered, label=L"\bar{\rho}_{total}", markersize=2, msc=:orangered)
 savefig(plt,path*"results/density_uniform_tradeoff2.svg")
 
 ### 4) Density C_v(t,rho) after low-rho targeting treatment 
 
-ymean_cv = zeros(length(discrete_t))
-for i in eachindex(discrete_t)
-    itp = LinearInterpolation(discrete_x, solc_low[i, :], extrapolation_bc=Interpolations.Flat())
-    ymean_cv[i] = itp(solx̄c_low[i])
-end
-
-cols = get(ColorSchemes.imola, range(0.0, 1.0, length=length(discrete_t)))
 plt = plot(size=(500,400), xlims=(0,0.15))
 for i in eachindex(discrete_t)
     Plots.plot!(plt, discrete_x, solc_low[i, :], label="", palette=cols, lw=1.5)
 end
 xlabel!(plt, L"\mathrm{\rho}"*" "*L"\mathrm{[day^{-1}}]")
 ylabel!(plt, L"C_v(t,"*L"\rho"*")")
-plot!(plt, solx̄c_low, ymean_cv, st=:scatter, color=:orangered, label=L"\bar{\rho}_{total}", markersize=2, msc=:orangered)
 savefig(plt,path*"results/density_low_tradeoff2.svg")
 
 ### 5) Density C_v(t,rho) after mid-rho targeting treatment 
 
-ymean_cv = zeros(length(discrete_t))
-for i in eachindex(discrete_t)
-    itp = LinearInterpolation(discrete_x, solc_mid[i, :], extrapolation_bc=Interpolations.Flat())
-    ymean_cv[i] = itp(solx̄c_mid[i])
-end
-
-cols = get(ColorSchemes.imola, range(0.0, 1.0, length=length(discrete_t)))
 plt = plot(size=(500,400), xlims=(0,0.15))
 for i in eachindex(discrete_t)
     Plots.plot!(plt, discrete_x, solc_mid[i, :], label="", palette=cols, lw=1.5)
 end
 xlabel!(plt, L"\mathrm{\rho}"*" "*L"\mathrm{[day^{-1}}]")
 ylabel!(plt, L"C_v(t,"*L"\rho"*")")
-plot!(plt, solx̄c_mid, ymean_cv, st=:scatter, color=:orangered, label=L"\bar{\rho}_{total}", markersize=2, msc=:orangered)
 savefig(plt,path*"results/density_mid_tradeoff2.svg")
 
 ### 6) Density C_v(t,rho) after high-rho targeting treatment 
 
-ymean_cv = zeros(length(discrete_t))
-for i in eachindex(discrete_t)
-    itp = LinearInterpolation(discrete_x, solc_high[i, :], extrapolation_bc=Interpolations.Flat())
-    ymean_cv[i] = itp(solx̄c_high[i])
-end
-
-cols = get(ColorSchemes.imola, range(0.0, 1.0, length=length(discrete_t)))
 plt = plot(size=(500,400), xlims=(0,0.15))
 for i in eachindex(discrete_t)
     Plots.plot!(plt, discrete_x, solc_high[i, :], label="", palette=cols, lw=1.5)
 end
 xlabel!(plt, L"\mathrm{\rho}"*" "*L"\mathrm{[day^{-1}}]")
 ylabel!(plt, L"C_v(t,"*L"\rho"*")")
-plot!(plt, solx̄c_high, ymean_cv, st=:scatter, color=:orangered, label=L"\bar{\rho}_{total}", markersize=2, msc=:orangered)
 savefig(plt,path*"results/density_high_tradeoff2.svg")
 
 ### 7) Population-wide mean proliferation rate after treatment
