@@ -281,7 +281,10 @@ for i in eachindex(discrete_t)
     ymean_cv[i] = itp(solx̄c_uniform[i])
 end
 
-cols = get(ColorSchemes.imola, range(0.0, 1.0, length=length(discrete_t)))
+pink = colorant"pink"
+hawaii = get(ColorSchemes.hawaii, range(0.0, 1.0, length=length(discrete_t)-3))
+cols = vcat(fill(pink,3), hawaii)
+
 plt = plot(size=(500,400), xlims=(0,0.15))
 for i in eachindex(discrete_t)
     Plots.plot!(plt, discrete_x, solc_uniform[i, :], label="", palette=cols, lw=1.5)
@@ -299,7 +302,6 @@ for i in eachindex(discrete_t)
     ymean_cv[i] = itp(solx̄c_low[i])
 end
 
-cols = get(ColorSchemes.imola, range(0.0, 1.0, length=length(discrete_t)))
 plt = plot(size=(500,400), xlims=(0,0.15))
 for i in eachindex(discrete_t)
     Plots.plot!(plt, discrete_x, solc_low[i, :], label="", palette=cols, lw=1.5)
@@ -317,7 +319,6 @@ for i in eachindex(discrete_t)
     ymean_cv[i] = itp(solx̄c_mid[i])
 end
 
-cols = get(ColorSchemes.imola, range(0.0, 1.0, length=length(discrete_t)))
 plt = plot(size=(500,400), xlims=(0,0.15))
 for i in eachindex(discrete_t)
     Plots.plot!(plt, discrete_x, solc_mid[i, :], label="", palette=cols, lw=1.5)
@@ -335,7 +336,6 @@ for i in eachindex(discrete_t)
     ymean_cv[i] = itp(solx̄c_high[i])
 end
 
-cols = get(ColorSchemes.imola, range(0.0, 1.0, length=length(discrete_t)))
 plt = plot(size=(500,400), xlims=(0,0.15))
 for i in eachindex(discrete_t)
     Plots.plot!(plt, discrete_x, solc_high[i, :], label="", palette=cols, lw=1.5)
